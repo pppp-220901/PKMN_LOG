@@ -1,0 +1,454 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>対戦ログ</title>
+  <style>
+    /* ── トークン ── */
+    :root {
+      --bg:        #0f1117;
+      --surface:   #1a1d27;
+      --border:    #2a2d3e;
+      --accent:    #4f8ef7;
+      --accent2:   #f7c94f;
+      --win:       #3ecf6a;
+      --lose:      #f74f4f;
+      --draw:      #888;
+      --text:      #e8eaf0;
+      --muted:     #7a7d8e;
+      --radius:    12px;
+      --font:      'Hiragino Sans', 'Noto Sans JP', sans-serif;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--font);
+      font-size: 15px;
+      min-height: 100vh;
+      padding-bottom: 40px;
+    }
+
+    /* ── ヘッダー ── */
+    header {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 16px 20px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      position: sticky;
+      top: 0;
+      z-index: 10;
+    }
+    header .pokeball {
+      width: 28px; height: 28px;
+      background: conic-gradient(#f74f4f 0 50%, #fff 50%);
+      border-radius: 50%;
+      border: 3px solid #fff;
+      position: relative;
+      flex-shrink: 0;
+    }
+    header .pokeball::after {
+      content: '';
+      position: absolute;
+      width: 8px; height: 8px;
+      background: #fff;
+      border-radius: 50%;
+      top: 50%; left: 50%;
+      transform: translate(-50%, -50%);
+      border: 2px solid #ccc;
+    }
+    header h1 {
+      font-size: 17px;
+      font-weight: 700;
+      letter-spacing: 0.03em;
+    }
+
+    /* ── メインレイアウト ── */
+    main {
+      padding: 20px 16px;
+      max-width: 480px;
+      margin: 0 auto;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    /* ── セクションカード ── */
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 16px;
+    }
+    .card-label {
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: 10px;
+    }
+
+    /* ── 画像アップロード ── */
+    .upload-area {
+      border: 2px dashed var(--border);
+      border-radius: var(--radius);
+      min-height: 120px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      cursor: pointer;
+      transition: border-color 0.2s;
+      position: relative;
+      overflow: hidden;
+    }
+    .upload-area:active { border-color: var(--accent); }
+    .upload-area input[type="file"] {
+      position: absolute;
+      inset: 0;
+      opacity: 0;
+      cursor: pointer;
+    }
+    .upload-area img {
+      width: 100%;
+      height: 160px;
+      object-fit: cover;
+      border-radius: 10px;
+    }
+    .upload-icon { font-size: 32px; }
+    .upload-hint { font-size: 13px; color: var(--muted); }
+
+    /* ── テキスト入力 ── */
+    input[type="text"], textarea {
+      width: 100%;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      color: var(--text);
+      font-family: var(--font);
+      font-size: 15px;
+      padding: 10px 12px;
+      outline: none;
+      transition: border-color 0.2s;
+      -webkit-appearance: none;
+    }
+    input[type="text"]:focus, textarea:focus {
+      border-color: var(--accent);
+    }
+    textarea { resize: vertical; min-height: 80px; line-height: 1.6; }
+
+    /* ── ポケモングリッド ── */
+    .poke-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 8px;
+    }
+    .poke-grid.six { grid-template-columns: 1fr 1fr; }
+    .poke-item { display: flex; flex-direction: column; gap: 4px; }
+    .poke-num {
+      font-size: 10px;
+      color: var(--muted);
+      font-weight: 700;
+    }
+
+    /* ── 勝敗ボタン ── */
+    .result-btns {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 8px;
+    }
+    .result-btn {
+      border: 2px solid var(--border);
+      border-radius: 8px;
+      background: transparent;
+      color: var(--muted);
+      font-family: var(--font);
+      font-size: 15px;
+      font-weight: 700;
+      padding: 12px 0;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .result-btn[data-val="win"].active  { border-color: var(--win);  color: var(--win);  background: #3ecf6a18; }
+    .result-btn[data-val="lose"].active { border-color: var(--lose); color: var(--lose); background: #f74f4f18; }
+    .result-btn[data-val="draw"].active { border-color: var(--draw); color: var(--draw); background: #88888818; }
+
+    /* ── 天候タグ ── */
+    .tag-grid {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+    .tag-btn {
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      background: transparent;
+      color: var(--muted);
+      font-family: var(--font);
+      font-size: 13px;
+      padding: 6px 14px;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .tag-btn.active {
+      border-color: var(--accent2);
+      color: var(--accent2);
+      background: #f7c94f18;
+    }
+
+    /* ── 送信ボタン ── */
+    .submit-btn {
+      width: 100%;
+      background: var(--accent);
+      color: #fff;
+      border: none;
+      border-radius: var(--radius);
+      font-family: var(--font);
+      font-size: 16px;
+      font-weight: 700;
+      padding: 16px;
+      cursor: pointer;
+      letter-spacing: 0.05em;
+      transition: opacity 0.2s;
+    }
+    .submit-btn:active { opacity: 0.8; }
+    .submit-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+    /* ── トースト ── */
+    .toast {
+      position: fixed;
+      bottom: 24px;
+      left: 50%;
+      transform: translateX(-50%) translateY(80px);
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 24px;
+      padding: 12px 24px;
+      font-size: 14px;
+      font-weight: 600;
+      transition: transform 0.3s ease;
+      z-index: 100;
+      white-space: nowrap;
+    }
+    .toast.show { transform: translateX(-50%) translateY(0); }
+    .toast.success { border-color: var(--win); color: var(--win); }
+    .toast.error   { border-color: var(--lose); color: var(--lose); }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="pokeball"></div>
+  <h1>対戦ログ — シングル</h1>
+</header>
+
+<main>
+
+  <!-- スクショ -->
+  <div class="card">
+    <div class="card-label">選出画面</div>
+    <div class="upload-area" id="uploadArea">
+      <input type="file" accept="image/*" id="imageInput">
+      <div class="upload-icon" id="uploadIcon">📷</div>
+      <div class="upload-hint" id="uploadHint">タップしてスクショを選択</div>
+    </div>
+  </div>
+
+  <!-- 対戦相手名 -->
+  <div class="card">
+    <div class="card-label">対戦相手</div>
+    <input type="text" id="opponentName" placeholder="トレーナー名（任意）">
+  </div>
+
+  <!-- 自分の選出 -->
+  <div class="card">
+    <div class="card-label">自分の選出</div>
+    <div class="poke-grid">
+      <div class="poke-item"><div class="poke-num">1体目</div><input type="text" id="my1" placeholder="ポケモン名"></div>
+      <div class="poke-item"><div class="poke-num">2体目</div><input type="text" id="my2" placeholder="ポケモン名"></div>
+      <div class="poke-item"><div class="poke-num">3体目</div><input type="text" id="my3" placeholder="ポケモン名"></div>
+    </div>
+  </div>
+
+  <!-- 相手の選出 -->
+  <div class="card">
+    <div class="card-label">相手の選出（見えた分）</div>
+    <div class="poke-grid six">
+      <div class="poke-item"><div class="poke-num">1体目</div><input type="text" id="op1" placeholder="ポケモン名"></div>
+      <div class="poke-item"><div class="poke-num">2体目</div><input type="text" id="op2" placeholder="ポケモン名"></div>
+      <div class="poke-item"><div class="poke-num">3体目</div><input type="text" id="op3" placeholder="ポケモン名"></div>
+      <div class="poke-item"><div class="poke-num">4体目</div><input type="text" id="op4" placeholder="ポケモン名"></div>
+      <div class="poke-item"><div class="poke-num">5体目</div><input type="text" id="op5" placeholder="ポケモン名"></div>
+      <div class="poke-item"><div class="poke-num">6体目</div><input type="text" id="op6" placeholder="ポケモン名"></div>
+    </div>
+  </div>
+
+  <!-- 勝敗 -->
+  <div class="card">
+    <div class="card-label">結果</div>
+    <div class="result-btns">
+      <button class="result-btn" data-val="win"  onclick="selectResult(this)">勝ち</button>
+      <button class="result-btn" data-val="lose" onclick="selectResult(this)">負け</button>
+      <button class="result-btn" data-val="draw" onclick="selectResult(this)">引き分け</button>
+    </div>
+  </div>
+
+  <!-- 天候/戦術 -->
+  <div class="card">
+    <div class="card-label">天候 / 戦術</div>
+    <div class="tag-grid">
+      <button class="tag-btn" onclick="selectTag(this)">☔ 雨</button>
+      <button class="tag-btn" onclick="selectTag(this)">☀️ 晴れ</button>
+      <button class="tag-btn" onclick="selectTag(this)">🌪 砂嵐</button>
+      <button class="tag-btn" onclick="selectTag(this)">❄️ 雪</button>
+      <button class="tag-btn" onclick="selectTag(this)">🔄 トリル</button>
+      <button class="tag-btn" onclick="selectTag(this)">— なし</button>
+    </div>
+  </div>
+
+  <!-- 攻防メモ -->
+  <div class="card">
+    <div class="card-label">攻防メモ</div>
+    <textarea id="battleMemo" placeholder="印象に残ったターンや判断を書いておこう"></textarea>
+  </div>
+
+  <!-- 反省点 -->
+  <div class="card">
+    <div class="card-label">反省点</div>
+    <textarea id="reflection" placeholder="次に活かしたいこと、裏目に出た択など"></textarea>
+  </div>
+
+  <!-- 送信 -->
+  <button class="submit-btn" id="submitBtn" onclick="submitLog()">記録する</button>
+
+</main>
+
+<div class="toast" id="toast"></div>
+
+<script>
+  // ── GAS Web API URL（デプロイ後に差し替え） ──
+  const GAS_URL = 'https://script.google.com/a/macros/bp-net.ne.jp/s/AKfycbwmNmET6KylKNGy-VuAwCon0QtebSW8q42pRbA6UxLsDwWWZ6PPU45-w6htLiZvjQis/exec';
+
+  let selectedResult = '';
+  let selectedTag = '';
+  let imageBase64 = '';
+
+  // 画像プレビュー
+  document.getElementById('imageInput').addEventListener('change', function(e) {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = function(ev) {
+      imageBase64 = ev.target.result;
+      const area = document.getElementById('uploadArea');
+      area.innerHTML = `<input type="file" accept="image/*" id="imageInput"><img src="${imageBase64}" alt="選出画面">`;
+      document.getElementById('imageInput').addEventListener('change', arguments.callee);
+    };
+    reader.readAsDataURL(file);
+  });
+
+  // 勝敗選択
+  function selectResult(btn) {
+    document.querySelectorAll('.result-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    selectedResult = btn.dataset.val;
+  }
+
+  // タグ選択
+  function selectTag(btn) {
+    document.querySelectorAll('.tag-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    selectedTag = btn.textContent.trim();
+  }
+
+  // 送信
+  async function submitLog() {
+    const btn = document.getElementById('submitBtn');
+    btn.disabled = true;
+    btn.textContent = '送信中…';
+
+    const payload = {
+      opponentName:     document.getElementById('opponentName').value,
+      myPokemon1:       document.getElementById('my1').value,
+      myPokemon2:       document.getElementById('my2').value,
+      myPokemon3:       document.getElementById('my3').value,
+      opponentPokemon1: document.getElementById('op1').value,
+      opponentPokemon2: document.getElementById('op2').value,
+      opponentPokemon3: document.getElementById('op3').value,
+      opponentPokemon4: document.getElementById('op4').value,
+      opponentPokemon5: document.getElementById('op5').value,
+      opponentPokemon6: document.getElementById('op6').value,
+      result:           selectedResult,
+      weather:          selectedTag,
+      battleMemo:       document.getElementById('battleMemo').value,
+      reflection:       document.getElementById('reflection').value,
+      image:            imageBase64,
+      imageName:        'battle_' + Date.now(),
+    };
+
+    try {
+      const res = await fetch(GAS_URL, {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      });
+      const data = await res.json();
+      if (data.status === 'ok') {
+        showToast('✅ 記録しました', 'success');
+        resetForm();
+      } else {
+        showToast('❌ エラー: ' + data.message, 'error');
+      }
+    } catch (err) {
+      showToast('❌ 送信に失敗しました', 'error');
+    } finally {
+      btn.disabled = false;
+      btn.textContent = '記録する';
+    }
+  }
+
+  // フォームリセット
+  function resetForm() {
+    document.querySelectorAll('input[type="text"], textarea').forEach(el => el.value = '');
+    document.querySelectorAll('.result-btn, .tag-btn').forEach(b => b.classList.remove('active'));
+    selectedResult = '';
+    selectedTag = '';
+    imageBase64 = '';
+    const area = document.getElementById('uploadArea');
+    area.innerHTML = `
+      <input type="file" accept="image/*" id="imageInput">
+      <div class="upload-icon" id="uploadIcon">📷</div>
+      <div class="upload-hint" id="uploadHint">タップしてスクショを選択</div>`;
+    document.getElementById('imageInput').addEventListener('change', handleImage);
+  }
+
+  function handleImage(e) {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = function(ev) {
+      imageBase64 = ev.target.result;
+      const area = document.getElementById('uploadArea');
+      area.innerHTML = `<input type="file" accept="image/*" id="imageInput"><img src="${imageBase64}" alt="選出画面">`;
+      document.getElementById('imageInput').addEventListener('change', handleImage);
+    };
+    reader.readAsDataURL(file);
+  }
+
+  // トースト表示
+  function showToast(msg, type) {
+    const t = document.getElementById('toast');
+    t.textContent = msg;
+    t.className = `toast ${type} show`;
+    setTimeout(() => { t.classList.remove('show'); }, 3000);
+  }
+</script>
+
+</body>
+</html>
