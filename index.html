@@ -240,16 +240,148 @@
     .toast.show { transform: translateX(-50%) translateY(0); }
     .toast.success { border-color: var(--win); color: var(--win); }
     .toast.error   { border-color: var(--lose); color: var(--lose); }
+    /* ── タブ ── */
+    .tabs {
+      display: flex;
+      max-width: 480px;
+      margin: 0 auto;
+      padding: 12px 16px 0;
+      gap: 8px;
+    }
+    .tab-btn {
+      flex: 1;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      color: var(--muted);
+      font-family: var(--font);
+      font-size: 14px;
+      font-weight: 700;
+      padding: 10px 0;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .tab-btn.active {
+      border-color: var(--accent);
+      color: var(--accent);
+      background: #4f8ef718;
+    }
+
+    /* ── 振り返りカード ── */
+    .review-status {
+      text-align: center;
+      color: var(--muted);
+      padding: 40px 0;
+      font-size: 14px;
+    }
+    .battle-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      overflow: hidden;
+    }
+    .battle-card img {
+      width: 100%;
+      display: block;
+      max-height: 260px;
+      object-fit: cover;
+      background: var(--bg);
+    }
+    .battle-card-body { padding: 16px; display: flex; flex-direction: column; gap: 14px; }
+    .battle-card-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .battle-date { font-size: 12px; color: var(--muted); }
+    .battle-result-badge {
+      font-size: 13px;
+      font-weight: 700;
+      padding: 4px 12px;
+      border-radius: 20px;
+    }
+    .battle-result-badge.win  { color: var(--win);  background: #3ecf6a18; border: 1px solid var(--win); }
+    .battle-result-badge.lose { color: var(--lose); background: #f74f4f18; border: 1px solid var(--lose); }
+    .battle-result-badge.draw { color: var(--draw); background: #88888818; border: 1px solid var(--draw); }
+    .battle-opponent { font-size: 14px; color: var(--muted); }
+    .battle-section-label {
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: 6px;
+    }
+    .battle-poke-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+    .battle-poke-chip {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 4px 10px;
+      font-size: 13px;
+    }
+    .battle-weather-chip {
+      display: inline-block;
+      font-size: 12px;
+      padding: 4px 12px;
+      border-radius: 20px;
+      border: 1px solid var(--accent2);
+      color: var(--accent2);
+      background: #f7c94f18;
+    }
+    .battle-memo-text {
+      font-size: 14px;
+      line-height: 1.7;
+      color: var(--text);
+      white-space: pre-wrap;
+    }
+
+    /* ── ページャー ── */
+    .pager {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin-top: 16px;
+    }
+    .pager-btn {
+      flex: 1;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      color: var(--text);
+      font-family: var(--font);
+      font-size: 14px;
+      font-weight: 700;
+      padding: 12px 0;
+      cursor: pointer;
+    }
+    .pager-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+    .pager-count {
+      font-size: 13px;
+      color: var(--muted);
+      white-space: nowrap;
+    }
+
   </style>
 </head>
 <body>
 
 <header>
   <div class="pokeball"></div>
-  <h1>対戦ログ — シングル</h1>
+  <h1>対戦ログ</h1>
 </header>
 
-<main>
+<nav class="tabs">
+  <button class="tab-btn active" id="tabRecord" onclick="switchTab('record')">📝 記録</button>
+  <button class="tab-btn" id="tabReview" onclick="switchTab('review')">📖 振り返り</button>
+</nav>
+
+<main id="recordView">
 
   <!-- スクショ -->
   <div class="card">
@@ -330,11 +462,147 @@
 
 </main>
 
+<!-- 振り返り画面 -->
+<main id="reviewView" style="display:none;">
+  <div class="review-status" id="reviewStatus">読み込み中…</div>
+  <div id="cardContainer"></div>
+  <div class="pager" id="pager" style="display:none;">
+    <button class="pager-btn" id="prevBtn" onclick="changeCard(-1)">← 前</button>
+    <span class="pager-count" id="pagerCount"></span>
+    <button class="pager-btn" id="nextBtn" onclick="changeCard(1)">次 →</button>
+  </div>
+</main>
+
 <div class="toast" id="toast"></div>
 
 <script>
-  // ── GAS Web API URL（デプロイ後に差し替え） ──
-  const GAS_URL = 'https://script.google.com/a/macros/bp-net.ne.jp/s/AKfycbwmNmET6KylKNGy-VuAwCon0QtebSW8q42pRbA6UxLsDwWWZ6PPU45-w6htLiZvjQis/exec';
+  // ── GAS Web API URL ──
+  const GAS_URL = 'https://script.google.com/macros/s/AKfycbwmNmET6KylKNGy-VuAwCon0QtebSW8q42pRbA6UxLsDwWWZ6PPU45-w6htLiZvjQis/exec';
+
+  // ── タブ切り替え ──
+  let reviewLoaded = false;
+
+  function switchTab(tab) {
+    const recordView = document.getElementById('recordView');
+    const reviewView = document.getElementById('reviewView');
+    const tabRecord = document.getElementById('tabRecord');
+    const tabReview = document.getElementById('tabReview');
+
+    if (tab === 'record') {
+      recordView.style.display = '';
+      reviewView.style.display = 'none';
+      tabRecord.classList.add('active');
+      tabReview.classList.remove('active');
+    } else {
+      recordView.style.display = 'none';
+      reviewView.style.display = '';
+      tabRecord.classList.remove('active');
+      tabReview.classList.add('active');
+      if (!reviewLoaded) loadReviewData();
+    }
+  }
+
+  // ── 振り返りデータ読み込み ──
+  let battleRecords = [];
+  let currentCardIndex = 0;
+
+  async function loadReviewData() {
+    const status = document.getElementById('reviewStatus');
+    status.style.display = '';
+    status.textContent = '読み込み中…';
+
+    try {
+      const res = await fetch(GAS_URL + '?action=list');
+      const data = await res.json();
+
+      if (data.status === 'ok') {
+        battleRecords = data.records;
+        reviewLoaded = true;
+
+        if (battleRecords.length === 0) {
+          status.textContent = 'まだ記録がありません';
+          return;
+        }
+
+        status.style.display = 'none';
+        currentCardIndex = 0;
+        renderCard();
+        document.getElementById('pager').style.display = '';
+      } else {
+        status.textContent = '読み込みエラー: ' + data.message;
+      }
+    } catch (err) {
+      status.textContent = '読み込みに失敗しました';
+    }
+  }
+
+  // ── カード描画 ──
+  function renderCard() {
+    const record = battleRecords[currentCardIndex];
+    const container = document.getElementById('cardContainer');
+
+    const resultClass = record.result === 'win' ? 'win' : record.result === 'lose' ? 'lose' : 'draw';
+    const resultLabel = record.result === 'win' ? '勝ち' : record.result === 'lose' ? '負け' : '引き分け';
+
+    const myPokes = [record.myPokemon1, record.myPokemon2, record.myPokemon3].filter(Boolean);
+    const opPokes = [
+      record.opponentPokemon1, record.opponentPokemon2, record.opponentPokemon3,
+      record.opponentPokemon4, record.opponentPokemon5, record.opponentPokemon6,
+    ].filter(Boolean);
+
+    container.innerHTML = `
+      <div class="battle-card">
+        ${record.imageUrl ? `<img src="${record.imageUrl}" alt="選出画面" onerror="this.style.display='none'">` : ''}
+        <div class="battle-card-body">
+          <div class="battle-card-top">
+            <span class="battle-date">${record.datetime}</span>
+            <span class="battle-result-badge ${resultClass}">${resultLabel}</span>
+          </div>
+          ${record.opponentName ? `<div class="battle-opponent">対 ${record.opponentName}</div>` : ''}
+
+          ${record.weather ? `<div><span class="battle-weather-chip">${record.weather}</span></div>` : ''}
+
+          <div>
+            <div class="battle-section-label">自分の選出</div>
+            <div class="battle-poke-row">
+              ${myPokes.map(p => `<span class="battle-poke-chip">${p}</span>`).join('')}
+            </div>
+          </div>
+
+          ${opPokes.length ? `
+          <div>
+            <div class="battle-section-label">相手の選出</div>
+            <div class="battle-poke-row">
+              ${opPokes.map(p => `<span class="battle-poke-chip">${p}</span>`).join('')}
+            </div>
+          </div>` : ''}
+
+          ${record.battleMemo ? `
+          <div>
+            <div class="battle-section-label">攻防メモ</div>
+            <div class="battle-memo-text">${record.battleMemo}</div>
+          </div>` : ''}
+
+          ${record.reflection ? `
+          <div>
+            <div class="battle-section-label">反省点</div>
+            <div class="battle-memo-text">${record.reflection}</div>
+          </div>` : ''}
+        </div>
+      </div>
+    `;
+
+    document.getElementById('pagerCount').textContent = `${currentCardIndex + 1} / ${battleRecords.length}`;
+    document.getElementById('prevBtn').disabled = currentCardIndex === 0;
+    document.getElementById('nextBtn').disabled = currentCardIndex === battleRecords.length - 1;
+  }
+
+  function changeCard(delta) {
+    currentCardIndex += delta;
+    if (currentCardIndex < 0) currentCardIndex = 0;
+    if (currentCardIndex > battleRecords.length - 1) currentCardIndex = battleRecords.length - 1;
+    renderCard();
+  }
 
   let selectedResult = '';
   let selectedTag = '';
