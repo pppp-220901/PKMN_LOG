@@ -267,6 +267,31 @@
       background: #4f8ef718;
     }
 
+    /* ── 並び替えトグル ── */
+    .sort-toggle {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 16px;
+    }
+    .sort-btn {
+      flex: 1;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      color: var(--muted);
+      font-family: var(--font);
+      font-size: 13px;
+      font-weight: 600;
+      padding: 8px 0;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .sort-btn.active {
+      border-color: var(--accent2);
+      color: var(--accent2);
+      background: #f7c94f18;
+    }
+
     /* ── 振り返りカード ── */
     .review-status {
       text-align: center;
@@ -464,6 +489,10 @@
 
 <!-- 振り返り画面 -->
 <main id="reviewView" style="display:none;">
+  <div class="sort-toggle" id="sortToggle" style="display:none;">
+    <button class="sort-btn active" id="sortNewBtn" onclick="setSortMode('new')">🕐 新しい順</button>
+    <button class="sort-btn" id="sortRandomBtn" onclick="setSortMode('random')">🔀 ランダム</button>
+  </div>
   <div class="review-status" id="reviewStatus">読み込み中…</div>
   <div id="cardContainer"></div>
   <div class="pager" id="pager" style="display:none;">
@@ -503,8 +532,29 @@
   }
 
   // ── 振り返りデータ読み込み ──
-  let battleRecords = [];
+  let battleRecords = [];   // 新しい順（オリジナル）
+  let displayRecords = [];  // 表示用（並び替え後）
   let currentCardIndex = 0;
+  let sortMode = 'new';
+
+  function shuffleArray(arr) {
+    const a = arr.slice();
+    for (let i = a.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [a[i], a[j]] = [a[j], a[i]];
+    }
+    return a;
+  }
+
+  function setSortMode(mode) {
+    sortMode = mode;
+    document.getElementById('sortNewBtn').classList.toggle('active', mode === 'new');
+    document.getElementById('sortRandomBtn').classList.toggle('active', mode === 'random');
+
+    displayRecords = mode === 'random' ? shuffleArray(battleRecords) : battleRecords.slice();
+    currentCardIndex = 0;
+    renderCard();
+  }
 
   async function loadReviewData() {
     const status = document.getElementById('reviewStatus');
@@ -517,6 +567,7 @@
 
       if (data.status === 'ok') {
         battleRecords = data.records;
+        displayRecords = battleRecords.slice();
         reviewLoaded = true;
 
         if (battleRecords.length === 0) {
@@ -525,6 +576,7 @@
         }
 
         status.style.display = 'none';
+        document.getElementById('sortToggle').style.display = '';
         currentCardIndex = 0;
         renderCard();
         document.getElementById('pager').style.display = '';
@@ -559,7 +611,7 @@
 
   // ── カード描画 ──
   function renderCard() {
-    const record = battleRecords[currentCardIndex];
+    const record = displayRecords[currentCardIndex];
     const container = document.getElementById('cardContainer');
 
     const resultClass = record.result === 'win' ? 'win' : record.result === 'lose' ? 'lose' : 'draw';
@@ -613,15 +665,15 @@
       </div>
     `;
 
-    document.getElementById('pagerCount').textContent = `${currentCardIndex + 1} / ${battleRecords.length}`;
+    document.getElementById('pagerCount').textContent = `${currentCardIndex + 1} / ${displayRecords.length}`;
     document.getElementById('prevBtn').disabled = currentCardIndex === 0;
-    document.getElementById('nextBtn').disabled = currentCardIndex === battleRecords.length - 1;
+    document.getElementById('nextBtn').disabled = currentCardIndex === displayRecords.length - 1;
   }
 
   function changeCard(delta) {
     currentCardIndex += delta;
     if (currentCardIndex < 0) currentCardIndex = 0;
-    if (currentCardIndex > battleRecords.length - 1) currentCardIndex = battleRecords.length - 1;
+    if (currentCardIndex > displayRecords.length - 1) currentCardIndex = displayRecords.length - 1;
     renderCard();
   }
 
@@ -629,19 +681,56 @@
   let selectedTag = '';
   let imageBase64 = '';
 
-  // 画像プレビュー
-  document.getElementById('imageInput').addEventListener('change', function(e) {
+  // ── 画像をリサイズ・圧縮してbase64で返す ──
+  function resizeImage(file, maxWidth, quality) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = function(ev) {
+        const img = new Image();
+        img.onload = function() {
+          let { width, height } = img;
+          if (width > maxWidth) {
+            height = Math.round(height * (maxWidth / width));
+            width = maxWidth;
+          }
+          const canvas = document.createElement('canvas');
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          ctx.drawImage(img, 0, 0, width, height);
+          resolve(canvas.toDataURL('image/jpeg', quality));
+        };
+        img.onerror = reject;
+        img.src = ev.target.result;
+      };
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+  }
+
+  // ── 画像選択時の共通処理 ──
+  async function handleImage(e) {
     const file = e.target.files[0];
     if (!file) return;
-    const reader = new FileReader();
-    reader.onload = function(ev) {
-      imageBase64 = ev.target.result;
-      const area = document.getElementById('uploadArea');
+
+    const area = document.getElementById('uploadArea');
+    area.innerHTML = `<div class="upload-hint">圧縮中…</div>`;
+
+    try {
+      imageBase64 = await resizeImage(file, 1200, 0.8);
       area.innerHTML = `<input type="file" accept="image/*" id="imageInput"><img src="${imageBase64}" alt="選出画面">`;
-      document.getElementById('imageInput').addEventListener('change', arguments.callee);
-    };
-    reader.readAsDataURL(file);
-  });
+      document.getElementById('imageInput').addEventListener('change', handleImage);
+    } catch (err) {
+      area.innerHTML = `
+        <input type="file" accept="image/*" id="imageInput">
+        <div class="upload-icon">📷</div>
+        <div class="upload-hint">画像の読み込みに失敗しました</div>`;
+      document.getElementById('imageInput').addEventListener('change', handleImage);
+    }
+  }
+
+  // 画像プレビュー（初期バインド）
+  document.getElementById('imageInput').addEventListener('change', handleImage);
 
   // 勝敗選択
   function selectResult(btn) {
@@ -715,19 +804,6 @@
       <div class="upload-icon" id="uploadIcon">📷</div>
       <div class="upload-hint" id="uploadHint">タップしてスクショを選択</div>`;
     document.getElementById('imageInput').addEventListener('change', handleImage);
-  }
-
-  function handleImage(e) {
-    const file = e.target.files[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = function(ev) {
-      imageBase64 = ev.target.result;
-      const area = document.getElementById('uploadArea');
-      area.innerHTML = `<input type="file" accept="image/*" id="imageInput"><img src="${imageBase64}" alt="選出画面">`;
-      document.getElementById('imageInput').addEventListener('change', handleImage);
-    };
-    reader.readAsDataURL(file);
   }
 
   // トースト表示
