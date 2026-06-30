@@ -536,6 +536,27 @@
     }
   }
 
+  // ── Drive URLを<img>表示可能な形式に変換 ──
+  function toViewableImageUrl(url) {
+    if (!url) return '';
+    const match = url.match(/\/d\/([a-zA-Z0-9_-]+)/);
+    if (match) {
+      return 'https://drive.google.com/uc?export=view&id=' + match[1];
+    }
+    return url;
+  }
+
+  // ── 日時を読みやすい形式に変換 ──
+  function formatDatetime(raw) {
+    if (!raw) return '';
+    const d = new Date(raw);
+    if (isNaN(d.getTime())) return raw;
+    return d.toLocaleString('ja-JP', {
+      year: 'numeric', month: '2-digit', day: '2-digit',
+      hour: '2-digit', minute: '2-digit',
+    });
+  }
+
   // ── カード描画 ──
   function renderCard() {
     const record = battleRecords[currentCardIndex];
@@ -552,10 +573,10 @@
 
     container.innerHTML = `
       <div class="battle-card">
-        ${record.imageUrl ? `<img src="${record.imageUrl}" alt="選出画面" onerror="this.style.display='none'">` : ''}
+        ${record.imageUrl ? `<img src="${toViewableImageUrl(record.imageUrl)}" alt="選出画面" onerror="this.style.display='none'">` : ''}
         <div class="battle-card-body">
           <div class="battle-card-top">
-            <span class="battle-date">${record.datetime}</span>
+            <span class="battle-date">${formatDatetime(record.datetime)}</span>
             <span class="battle-result-badge ${resultClass}">${resultLabel}</span>
           </div>
           ${record.opponentName ? `<div class="battle-opponent">対 ${record.opponentName}</div>` : ''}
